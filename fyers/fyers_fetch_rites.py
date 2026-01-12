@@ -2,7 +2,6 @@
 # Fetch daily OHLCV data for RITES using FYERS API
 
 from fyers_apiv3 import fyersModel
-from fyers_apiv3.FyersWebsocket import ws
 import pandas as pd
 import webbrowser
 import datetime
@@ -11,16 +10,16 @@ import os
 # =========================
 # 🔹 ENTER YOUR DETAILS
 # =========================
-CLIENT_ID =6N3D2EQCU5-100        # format: ABCD1234-100
-SECRET_KEY = JVU3RW4QQY
+CLIENT_ID = "6N3D2EQCU5-100"        # format: ABCD1234-100
+SECRET_KEY = "JVU3RW4QQY"
 REDIRECT_URI = "https://www.google.com/"
 
 # =========================
 # 🔹 STEP 1: Generate Auth Code URL
 # =========================
 session = fyersModel.SessionModel(
-    client_id=6N3D2EQCU5-100,
-    secret_key=JVU3RW4QQY,
+    client_id= "6N3D2EQCU5-100",
+    secret_key= "JVU3RW4QQY",
     redirect_uri="https://www.google.com/",
     response_type="code",
     grant_type="authorization_code"
@@ -48,7 +47,7 @@ print("Access token generated successfully!")
 # 🔹 STEP 3: Initialize FYERS
 # =========================
 fyers = fyersModel.FyersModel(
-    client_id=CLIENT_ID,
+    client_id= "6N3D2EQCU5-100",
     token=access_token,
     log_path=os.getcwd()
 )
