@@ -1,25 +1,30 @@
 # model/predict.py
 
-def predict(model, X):
-    """
-    Generates BUY / NO BUY predictions.
+import pandas as pd
+import joblib
 
-    Parameters:
-    model: trained model
-    X (pd.DataFrame): feature columns only
+def load_model(model_path="model/artifacts/logistic_model.pkl"):
+    return joblib.load(model_path)
 
-    Returns:
-    array of predictions (0 or 1)
-    """
-    return model.predict(X)
+def predict_signals():
+    # Load model
+    model = load_model()
 
+    # Load feature data
+    df = pd.read_csv("data/processed/rites_features.csv")
 
-def predict_proba(model, X):
-    """
-    Generates BUY probability.
+    X = df.drop(columns=["date", "target"])
 
-    Returns:
-    probability of class 1 (BUY)
-    """
-    return model.predict_proba(X)[:, 1]
+    # Predictions
+    df["prediction"] = model.predict(X)
+    df["buy_probability"] = model.predict_proba(X)[:, 1]
 
+    # Save predictions
+    df.to_csv("data/processed/rites_predictions.csv", index=False)
+
+    print("✅ Predictions generated")
+    print("Saved to data/processed/rites_predictions.csv")
+    print("\nPreview:\n", df[["date", "prediction", "buy_probability"]].tail())
+
+if __name__ == "__main__":
+    predict_signals()
