@@ -59,8 +59,8 @@ data = {
     "symbol": "NSE:RITES-EQ",
     "resolution": "D",
     "date_format": "1",
-    "range_from": "2023-11-01",
-    "range_to": "2023-12-31",
+    "range_from": "2025-11-01",
+    "range_to": "2025-12-31",
     "cont_flag": "1"
 }
 
