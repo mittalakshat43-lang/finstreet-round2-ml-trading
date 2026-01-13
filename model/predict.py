@@ -1,101 +1,92 @@
-# model/predict.py
-
-import os
-import joblib
 import pandas as pd
-from fyers_apiv3 import fyersModel
+import numpy as np
+import joblib
+import os
 
-# --- CONFIGURATION ---
-CLIENT_ID = "6N3D2EQCU5-100"
-MODEL_PATH = "model/artifacts/trading_model.pkl"
-DATA_PATH = "data/processed/rites_features.csv"
+# =========================
+# 🔹 CONFIGURATION
+# =========================
+BASE_DIR = os.getcwd()
+RAW_DATA_PATH = os.path.join(BASE_DIR, "data", "raw", "rites_daily.csv")
+MODEL_PATH = os.path.join(BASE_DIR, "artifacts", "trading_model.pkl")
+OUTPUT_CSV = os.path.join(BASE_DIR, "data", "processed", "jan_predictions.csv")
 
-def get_token_path():
-    """Finds access_token.txt in current or parent directory."""
-    # This list ensures the script looks everywhere for your 'pass'
-    possible_paths = [
-        "access_token.txt",             # Root folder
-        "../access_token.txt",          # One level up
-        "fyers/access_token.txt"        # Inside fyers folder
-    ]
-    for path in possible_paths:
-        if os.path.exists(path):
-            return path
-    return None
+# Must match train.py columns exactly
+FEATURE_COLS = ["return_1d", "return_3d", "return_5d", "clv", "up_streak", "down_streak", "accel"]
 
-def get_latest_signal():
-    """Loads the latest features and predicts tomorrow's move."""
-    if not os.path.exists(MODEL_PATH) or not os.path.exists(DATA_PATH):
-        print(f"❌ Error: Model ({MODEL_PATH}) or Features ({DATA_PATH}) missing!")
-        return None
+def compute_features(df):
+    """Calculates technical indicators for the entire dataset."""
+    df = df.copy()
+    df["return_1d"] = df["close"].pct_change(1)
+    df["return_3d"] = df["close"].pct_change(3)
+    df["return_5d"] = df["close"].pct_change(5)
+    
+    denom = (df["high"] - df["low"]).replace(0, np.nan)
+    df["clv"] = (((df["close"] - df["low"]) - (df["high"] - df["close"])) / denom).fillna(0)
+    
+    df["up_streak"] = (df["close"].diff() > 0).astype(int).cumsum()
+    df["down_streak"] = (df["close"].diff() < 0).astype(int).cumsum()
+    df["accel"] = df["return_1d"] - df["return_1d"].shift(1)
+    
+    return df
 
-    # Load Model and Data
+def run_predictions():
+    print("⏳ Loading Data & Model...")
+    if not os.path.exists(RAW_DATA_PATH):
+        print("❌ Error: Raw data not found.")
+        return
+
+    # Load Full Data (Nov 1 - Jan 8)
+    full_df = pd.read_csv(RAW_DATA_PATH)
+    full_df["date"] = pd.to_datetime(full_df["date"])
+    full_df = full_df.sort_values("date").reset_index(drop=True)
+    
+    # Load Model (Trained on Nov-Dec only)
     model = joblib.load(MODEL_PATH)
-    df = pd.read_csv(DATA_PATH)
+
+    # Identify the specific days we want to PREDICT (Jan 1 - Jan 8)
+    # Note: We filter for dates > Dec 31
+    target_dates = full_df[full_df["date"] > "2025-12-31"]["date"].tolist()
     
-    # Take the VERY LAST row (most recent data)
-    latest_data = df.tail(1).drop(columns=["date", "target"], errors='ignore')
-    
-    prediction = model.predict(latest_data)[0]
-    # Optional: Get probability to track confidence for Jan 1-8
-    try:
-        prob = model.predict_proba(latest_data)[0][1]
-        print(f"🎲 Model Confidence: {prob:.2%}")
-    except:
-        pass
+    predictions_list = []
 
-    return prediction 
+    print(f"🔮 Generating Sequential Predictions for {len(target_dates)} days...")
+    print("="*60)
+    print(f"{'TARGET DATE':<12} | {'INPUT DATE':<12} | {'PREDICTION':<10}")
+    print("="*60)
 
-def execute_trade(signal):
-    """Uses FYERS API to place an order based on signal."""
-    token_path = get_token_path()
-    
-    if token_path is None:
-        print("❌ ERROR: access_token.txt not found. Please run fyers_fetch_rites.py first!")
-        return
+    for target_date in target_dates:
+        # To predict 'target_date', we use data UP TO the day before it.
+        # This mimics standing at 9:00 AM on 'target_date' with yesterday's charts.
+        historical_context = full_df[full_df["date"] < target_date].copy()
+        
+        # Calculate features on this history
+        feats_df = compute_features(historical_context)
+        
+        # Get the very last row (Yesterday's closed candle)
+        # This is our input vector
+        input_vector = feats_df.tail(1)[FEATURE_COLS].fillna(0)
+        input_date = historical_context.iloc[-1]["date"]
 
-    with open(token_path, "r") as f:
-        access_token = f.read().strip()
+        # Predict
+        pred = model.predict(input_vector)[0]
+        prob = model.predict_proba(input_vector)[0].max()
+        
+        signal = "BUY" if pred == 1 else "WAIT"
+        
+        print(f"{target_date.date()} | {input_date.date()}   | {signal} ({prob:.2f})")
 
-    # Initialize Fyers Model
-    fyers = fyersModel.FyersModel(client_id=CLIENT_ID, token=access_token)
+        predictions_list.append({
+            "date": target_date,
+            "prediction": pred,       # 1 or 0
+            "confidence": prob
+        })
 
-    # 1. Verify Login (Fixes the 'Account: None' error)
-    profile = fyers.get_profile()
-    if profile.get('s') != 'ok':
-        print("❌ API Error: Token may be expired. Refresh it by running your fetch script.")
-        print("Response:", profile)
-        return
-    
-    # Extract name for verification
-    user_name = profile.get('data', {}).get('display_name', 'Verified User')
-    print(f"💰 Account: {user_name} | Signal: {'BUY' if signal == 1 else 'WAIT'}")
-
-    # 2. Place Order if Signal is 1 (Buy)
-    if signal == 1:
-        data = {
-            "symbol": "NSE:RITES-EQ",
-            "qty": 1,
-            "type": 2,          # 2 = Market Order
-            "side": 1,          # 1 = Buy
-            "productType": "INTRADAY",
-            "limitPrice": 0,
-            "stopPrice": 0,
-            "validity": "DAY",
-            "disclosedQty": 0,
-            "offlineOrder": "False"
-        }
-        response = fyers.place_order(data=data)
-        print("🚀 FYERS Response:", response.get('message', response))
-    else:
-        print("⏸️ No buy signal generated for today. Staying cash.")
+    # Save to CSV
+    os.makedirs(os.path.dirname(OUTPUT_CSV), exist_ok=True)
+    pd.DataFrame(predictions_list).to_csv(OUTPUT_CSV, index=False)
+    print("="*60)
+    print(f"✅ Predictions saved to: {OUTPUT_CSV}")
 
 if __name__ == "__main__":
-    print("\n" + "="*30)
-    print("🤖 FINSTREET TRADING BOT")
-    print("="*30)
-    
-    signal = get_latest_signal()
-    if signal is not None:
-        execute_trade(signal)
-    print("="*30 + "\n")
+    run_predictions()
