@@ -37,10 +37,12 @@ auth_code = input("Paste auth_code from URL here: ").strip()
 session.set_token(auth_code)
 response = session.generate_token()
 
-if "access_token" not in response:
-    raise Exception(f"Error generating access token: {response}")
-
-access_token = response["access_token"]
+if "access_token" in response:
+    access_token = response["access_token"]
+    
+    # This line is the "Bridge". It saves the pass for the next script.
+    with open("access_token.txt", "w") as f:
+        f.write(access_token)
 print("Access token generated successfully!")
 
 # =========================
