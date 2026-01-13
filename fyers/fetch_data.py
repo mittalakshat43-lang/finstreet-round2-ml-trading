@@ -7,17 +7,17 @@ import time
 # =====================================================
 # 1️⃣ ENTER YOUR DETAILS HERE ONLY
 # =====================================================
-APP_ID = 6N3D2EQCU5-100
-SECRET_KEY = JVU3RW4QQY
+APP_ID = "6N3D2EQCU5-100"
+SECRET_KEY = "JVU3RW4QQY"
 REDIRECT_URI = "https://www.google.com"
 
 # =====================================================
 # 2️⃣ GENERATE AUTH URL (one-time login)
 # =====================================================
 session = accessToken.SessionModel(
-    client_id=APP_ID,
-    secret_key=SECRET_KEY,
-    redirect_uri=REDIRECT_URI,
+    client_id="6N3D2EQCU5-100",
+    secret_key="JVU3RW4QQY",
+    redirect_uri="https://www.google.com",
     response_type="code",
     grant_type="authorization_code"
 )
@@ -42,8 +42,8 @@ print("✅ Access token generated")
 # 4️⃣ INITIALIZE FYERS
 # =====================================================
 fyers = fyersModel.FyersModel(
-    client_id=APP_ID,
-    token=access_token,
+    client_id="6N3D2EQCU5-100",
+    token="JVU3RW4QQY",
     log_path="."
 )
 
