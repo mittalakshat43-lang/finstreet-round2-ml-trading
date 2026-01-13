@@ -16,7 +16,7 @@ def place_order(
     # Initialize FYERS client
     fyers = fyersModel.FyersModel(
         client_id="6N3D2EQCU5-100",
-        token=access_token,
+        token="JVU3RW4QQY",
         log_path=""
     )
 
@@ -49,7 +49,7 @@ if __name__ == "__main__":
     ACCESS_TOKEN = "PASTE_ACCESS_TOKEN_HERE"
 
     place_order(
-        access_token=ACCESS_TOKEN,
+        access_token="JVU3RW4QQY",
         symbol="NSE:RITES-EQ",
         qty=1,
         side="BUY"
