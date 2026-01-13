@@ -15,7 +15,7 @@ def place_order(
 
     # Initialize FYERS client
     fyers = fyersModel.FyersModel(
-        client_id="YOUR_CLIENT_ID",
+        client_id="6N3D2EQCU5-100",
         token=access_token,
         log_path=""
     )
