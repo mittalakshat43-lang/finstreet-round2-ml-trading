@@ -1,51 +1,73 @@
 # model/predict.py
 
-import pandas as pd
+import os
 import joblib
+import pandas as pd
+from fyers_apiv3 import fyersModel
 
+# --- CONFIGURATION ---
+CLIENT_ID = "6N3D2EQCU5-100"
+TOKEN_FILE = "access_token.txt"
+MODEL_PATH = "model/artifacts/trading_model.pkl"
+DATA_PATH = "data/processed/rites_features.csv"
 
-def predict_signals(
-    features_csv="data/processed/rites_features.csv",
-    model_path="model/artifacts/logistic_model.pkl",
-    threshold=0.4
-):
-    """
-    Generate predictions for price movement using a trained ML model.
-    Uses probability-based thresholding instead of hard 0.5 cutoff.
-    """
+def get_latest_signal():
+    """Loads the latest features and predicts tomorrow's move."""
+    if not os.path.exists(MODEL_PATH) or not os.path.exists(DATA_PATH):
+        print("❌ Model or Features missing!")
+        return None
 
-    # Load processed feature data
-    df = pd.read_csv(features_csv)
+    # Load Model and Data
+    model = joblib.load(MODEL_PATH)
+    df = pd.read_csv(DATA_PATH)
+    
+    # Take the VERY LAST row (most recent data)
+    # We drop 'date' and 'target' to match training features
+    latest_data = df.tail(1).drop(columns=["date", "target"])
+    
+    prediction = model.predict(latest_data)[0]
+    return prediction # 1 for Buy, 0 for No Action/Sell
 
-    # Separate features
-    X = df.drop(columns=["date", "target"])
+def execute_trade(signal):
+    """Uses FYERS API to place an order based on signal."""
+    if not os.path.exists(TOKEN_FILE):
+        print("❌ No access token found. Run fetch script first.")
+        return
 
-    # Load trained model
-    model = joblib.load(model_path)
+    with open(TOKEN_FILE, "r") as f:
+        access_token = f.read().strip()
 
-    # Predict probability of UP move (class = 1)
-    df["buy_probability"] = model.predict_proba(X)[:, 1]
+    fyers = fyersModel.FyersModel(client_id=CLIENT_ID, token=access_token)
 
-    # Apply threshold to generate signal
-    df["signal"] = (df["buy_probability"] > threshold).astype(int)
+    # 1. Check Profile (Risk Management: ensure we have funds)
+    profile = fyers.get_profile()
+    if profile.get('s') != 'ok':
+        print("❌ API Error:", profile)
+        return
+    
+    print(f"💰 Account: {profile['data']['display_name']} | Signal: {'BUY' if signal == 1 else 'WAIT'}")
 
-    # Map signal to readable action
-    df["action"] = df["signal"].map({
-        1: "BUY",
-        0: "HOLD / NO TRADE"
-    })
-
-    # Save predictions
-    output_path = "data/processed/rites_predictions.csv"
-    df.to_csv(output_path, index=False)
-
-    print("✅ Predictions generated successfully")
-    print(f"Saved to: {output_path}")
-    print("\nLatest predictions:\n")
-    print(df[["date", "buy_probability", "signal", "action"]].tail(5))
-
-    return df
-
+    # 2. Place Order if Signal is 1 (Buy)
+    if signal == 1:
+        data = {
+            "symbol": "NSE:RITES-EQ",
+            "qty": 1,
+            "type": 2,          # 2 = Market Order
+            "side": 1,          # 1 = Buy
+            "productType": "INTRADAY",
+            "limitPrice": 0,
+            "stopPrice": 0,
+            "validity": "DAY",
+            "disclosedQty": 0,
+            "offlineOrder": "False"
+        }
+        response = fyers.place_order(data=data)
+        print("🚀 Order Response:", response)
+    else:
+        print("⏸️ No buy signal generated. Staying cash.")
 
 if __name__ == "__main__":
-    predict_signals()
+    print("🤖 Running Trading Bot...")
+    signal = get_latest_signal()
+    if signal is not None:
+        execute_trade(signal)
