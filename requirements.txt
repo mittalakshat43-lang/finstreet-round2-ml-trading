@@ -1,1 +1,6 @@
-
+fyers-apiv3
+pandas
+numpy
+scikit-learn
+joblib
+matplotlib
