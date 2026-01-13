@@ -25,7 +25,7 @@ def train_model():
     # ML pipeline
     model = Pipeline([
         ("scaler", StandardScaler()),
-        ("clf", LogisticRegression())
+        ("clf", LogisticRegression(class_weight="balanced"))
     ])
 
     # Train model
