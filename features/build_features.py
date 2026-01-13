@@ -1,5 +1,4 @@
 # features/build_features.py
-
 import pandas as pd
 import numpy as np
 import os
@@ -23,27 +22,27 @@ def compute_streaks(df):
     return pd.Series(up_streak, index=df.index), pd.Series(down_streak, index=df.index)
 
 def build_features():
-    # --- STEP 1: LOCATE THE FILE ---
-    # We look in 'data/raw/' since your fetch script put it there
+    # PATH SETUP
+    # Assuming this script is inside a folder (e.g., 'features/' or root)
+    # We use relative paths to be safe.
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    
+    # If this script is in 'features/', go up one level. If in root, stay there.
+    # Adjust this logic if your folder structure changes. 
+    # Here we assume running from ROOT.
     input_path = "data/raw/rites_daily.csv"
     output_path = "data/processed/rites_features.csv"
     
-    print(f"🔍 Searching for input file at: {os.path.abspath(input_path)}")
-    
     if not os.path.exists(input_path):
-        print(f"❌ FAILED: The file '{input_path}' does not exist.")
+        print(f"❌ Error: {input_path} not found. Run fyers_fetch_rites.py first.")
         return
 
-    # --- STEP 2: LOAD DATA ---
-    print("📖 Loading CSV...")
+    print("📖 Loading Data...")
     df = pd.read_csv(input_path)
-    print(f"✅ Loaded {len(df)} rows.")
-
-    # --- STEP 3: CALCULATE FEATURES ---
-    print("⚙️  Calculating technical indicators...")
     df["date"] = pd.to_datetime(df["date"])
     df = df.sort_values("date").reset_index(drop=True)
-    
+
+    print("⚙️ Engineering Features...")
     df["return_1d"] = df["close"].pct_change(1)
     df["return_3d"] = df["close"].pct_change(3)
     df["return_5d"] = df["close"].pct_change(5)
@@ -51,22 +50,16 @@ def build_features():
     df["up_streak"], df["down_streak"] = compute_streaks(df)
     df["accel"] = df["return_1d"] - df["return_1d"].shift(1)
     
-    # Target: 1 if tomorrow's price is higher than today
+    # Target: 1 if NEXT day is Up, 0 if Down
     df["target"] = (df["close"].shift(-1) > df["close"]).astype(int)
 
-    # --- STEP 4: CLEANING ---
-    feature_cols = ["return_1d", "return_3d", "return_5d", "clv", "up_streak", "down_streak", "accel", "target"]
-    final_df = df[["date"] + feature_cols].dropna().reset_index(drop=True)
-    print(f"🧹 Dropped NaNs. Remaining rows for training: {len(final_df)}")
+    # Clean NaNs (removes the last row because target is NaN)
+    final_df = df.dropna().reset_index(drop=True)
 
-    # --- STEP 5: SAVE ---
-    os.makedirs("data/processed", exist_ok=True)
+    # SAVE
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
     final_df.to_csv(output_path, index=False)
-    
-    print(f"🚀 SUCCESS! Features saved to: {os.path.abspath(output_path)}")
-    print("\nPreview of processed data:")
-    print(final_df.head())
+    print(f"✅ Features saved to {output_path} ({len(final_df)} rows for training)")
 
-# THIS PART IS CRUCIAL: It tells Python to actually run the function
 if __name__ == "__main__":
     build_features()
