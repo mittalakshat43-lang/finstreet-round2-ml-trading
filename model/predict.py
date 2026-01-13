@@ -7,7 +7,7 @@ from fyers_apiv3 import fyersModel
 
 # --- CONFIGURATION ---
 CLIENT_ID = "6N3D2EQCU5-100"
-TOKEN_FILE = "access_token.txt"
+TOKEN_FILE = "JVU3RW4QQY"
 MODEL_PATH = "model/artifacts/trading_model.pkl"
 DATA_PATH = "data/processed/rites_features.csv"
 
